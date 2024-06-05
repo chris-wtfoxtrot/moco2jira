@@ -54,7 +54,7 @@ m2j_fetch_jira_issue() {
 
   for i in $(seq 0 $((JIRA_LEN - 1)))
   do
-    INDEX=$(($i + $M2J_ARRAY_OFFET))
+    INDEX=$(($i + $M2J_ARRAY_OFFSET))
     m2j_verbose yellow "index" $INDEX
 
     JIRA=${M2J_JIRAS[$INDEX]}
@@ -242,7 +242,7 @@ m2j() {
     if [[ $BOOKING_TEXT == *" || "* ]]; then
       m2j_verbose green "BOOKING_TEXT" $BOOKING_TEXT
       arrIN=(${(s/ || /)BOOKING_TEXT})
-      INDEX=$((1 + $M2J_ARRAY_OFFET))
+      INDEX=$((1 + $M2J_ARRAY_OFFSET))
       BOOKING_TEXT=`echo ${arrIN[$INDEX]}`
       m2j_verbose green "BOOKING_TEXT" $BOOKING_TEXT
     fi
