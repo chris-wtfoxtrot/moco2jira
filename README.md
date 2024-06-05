@@ -35,4 +35,5 @@ brew install jq
 ### Api-Keys
 
 Moco => https://{{moco-subdomain}}.mocoapp.com/profile/integrations
+
 Jira => https://id.atlassian.com/manage-profile/security/api-tokens
