@@ -55,7 +55,7 @@ m2j_fetch_jira_issue() {
   for i in $(seq 0 $((JIRA_LEN - 1)))
   do
     INDEX=$(($i + $M2J_ARRAY_OFFSET))
-    m2j_verbose yellow "index" $INDEX
+    m2j_verbose yellow "INDEX" $INDEX
 
     JIRA=${M2J_JIRAS[$INDEX]}
     m2j_verbose green "JIRA" $JIRA
@@ -91,7 +91,7 @@ m2j_fetch_jira_issues() {
 
     m2j_fetch_jira_issue
 
-    if [[ $index == $JIRA_LEN ]]; then
+    if [[ $INDEX == $JIRA_LEN ]]; then
       m2j_echo red "skipping; ${JIRA_KEY} not found"
     else
       M2J_JIRA_TICKETS[$JIRA_KEY,'JIRA']=$JIRA
