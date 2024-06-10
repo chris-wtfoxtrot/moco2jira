@@ -73,12 +73,12 @@ m2j_fetch_jira_issue() {
 
 m2j_curl_jira_issue() {
   JIRA_TMP=`curl -s --request GET --user "${M2J_USER}:${M2J_JIRA_TOKEN}" --header 'Accept: application/json' --url "https://${JIRA}.atlassian.net/rest/api/3/issue/${JIRA_KEY}$1"`
-  JIRA_JSON=`echo $JIRA_TMP | tr -d '\n'`
+  JIRA_JSON=`echo $JIRA_TMP | LC_ALL=C tr -d '\000-\037'`
 }
 
 m2j_curl_jira_project() {
   JIRA_TMP=`curl -s --request GET --user "${M2J_USER}:${M2J_JIRA_TOKEN}" --header 'Accept: application/json' --url "https://${JIRA}.atlassian.net/rest/api/3/project/${JIRA_PROJECT}$1"`
-  JIRA_JSON=`echo $JIRA_TMP | tr -d '\n'`
+  JIRA_JSON=`echo $JIRA_TMP | LC_ALL=C tr -d '\000-\037'`
 }
 
 m2j_fetch_jira_issues() {
@@ -249,15 +249,13 @@ m2j() {
 
     BOOKING_TEXT=`echo $i | base64 --decode | jq -r '.text' | sed 's/ (synced)//' | sed 's/ (synched)//g'`
     if [[ $BOOKING_TEXT == *" || "* ]]; then
-      # for bash
-      # BOOKING_TEXT=`echo "${BOOKING_TEXT}" | awk -F' || ' '{print $2}'` # split BOOKING_TEXT with delimiter " || "
-
-      # for zsh /mac
-      m2j_verbose green "BOOKING_TEXT" $BOOKING_TEXT
-      arrIN=(${(s/ || /)BOOKING_TEXT})
-      INDEX=$((1 + $M2J_ARRAY_OFFSET))
-      BOOKING_TEXT=`echo ${arrIN[$INDEX]}`
-      m2j_verbose green "BOOKING_TEXT" $BOOKING_TEXT
+      if [[ M2J_ARRAY_OFFSET == 0 ]]; then
+        BOOKING_TEXT=`echo "${BOOKING_TEXT}" | awk -F' || ' '{print $2}'` # split BOOKING_TEXT with delimiter " || "
+      else
+        arrIN=(${(s/ || /)BOOKING_TEXT}) # split BOOKING_TEXT with delimiter " || "
+        INDEX=$((1 + $M2J_ARRAY_OFFSET))
+        BOOKING_TEXT=`echo ${arrIN[$INDEX]}`
+      fi
     fi
     m2j_verbose green "BOOKING_TEXT" "${BOOKING_TEXT}"
 
