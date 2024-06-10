@@ -249,10 +249,17 @@ m2j() {
 
     BOOKING_TEXT=`echo $i | base64 --decode | jq -r '.text' | sed 's/ (synced)//' | sed 's/ (synched)//g'`
     if [[ $BOOKING_TEXT == *" || "* ]]; then
-      BOOKING_TEXT=`echo "${BOOKING_TEXT}" | awk -F' || ' '{print $2}'` # split BOOKING_TEXT with delimiter " || "
+      # for bash
+      # BOOKING_TEXT=`echo "${BOOKING_TEXT}" | awk -F' || ' '{print $2}'` # split BOOKING_TEXT with delimiter " || "
+
+      # for zsh /mac
+      m2j_verbose green "BOOKING_TEXT" $BOOKING_TEXT
+      arrIN=(${(s/ || /)BOOKING_TEXT})
+      INDEX=$((1 + $M2J_ARRAY_OFFSET))
+      BOOKING_TEXT=`echo ${arrIN[$INDEX]}`
+      m2j_verbose green "BOOKING_TEXT" $BOOKING_TEXT
     fi
     m2j_verbose green "BOOKING_TEXT" "${BOOKING_TEXT}"
-
 
     BOOKING_DURATION=$(( `echo $i | base64 --decode | jq -r '.duration'` / 60 * 60 ))
     m2j_verbose green "BOOKING_DURATION" $BOOKING_DURATION
