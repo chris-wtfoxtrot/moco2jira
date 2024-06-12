@@ -63,6 +63,7 @@ m2j_fetch_jira_issue() {
     m2j_verbose green "JIRA" $JIRA
 
     m2j_curl_jira_issue
+    m2j_verbose green "JIRA_JSON" "${JIRA_JSON}"
     ERROR=`echo $JIRA_JSON | jq '.errorMessages'`
 
     if [[ $ERROR == "null" ]]; then
@@ -93,12 +94,12 @@ m2j_fetch_jira_issues() {
 
     m2j_fetch_jira_issue
 
-    if [[ $INDEX == $JIRA_LEN ]]; then
-      m2j_echo red "skipping; ${JIRA_KEY} not found"
-    else
+    if [[ $ERROR == "null" ]]; then
       M2J_JIRA_TICKETS[$JIRA_KEY,'JIRA']=$JIRA
       M2J_JIRA_TICKETS[$JIRA_KEY,'SUMMARY']=`echo $JIRA_JSON | jq -r '.fields.summary'`
       M2J_JIRA_TICKETS[$JIRA_KEY,'PROJECT']=`echo $JIRA_JSON | jq -r '.fields.project.id'`
+    else
+      m2j_echo red "skipping; ${JIRA_KEY} not found"
     fi
   done
 }
