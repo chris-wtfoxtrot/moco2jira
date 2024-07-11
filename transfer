@@ -235,7 +235,6 @@ m2j_update_moco_project() {
 
 m2j_delete() {
   m2j_verbose yellow "DELETE"
-  m2j_moco_json
 
   for i in $(echo $MOCO_JSON | jq "reduce .[] as \$row ({}; .[\"\(\$row.tag) ||| \(\$row.description)\"] += \$row.seconds) | . as \$hash | keys | map({key:split(\" ||| \")[0], text: split(\" ||| \")[1], duration: \$hash[.]})" | jq -r '.[] | @base64')
   do
@@ -297,11 +296,10 @@ m2j() {
   done
 
   m2j_setup $M2J_DATE
-  echo
+  m2j_moco_json
+  m2j_fetch_jira_issues
 
   if [[ $M2J_DELETE == 0 ]]; then
-    m2j_moco_json
-    m2j_fetch_jira_issues
     m2j_update_moco " || "
     m2j_moco_json
 
