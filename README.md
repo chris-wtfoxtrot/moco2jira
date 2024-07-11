@@ -11,7 +11,6 @@ export M2J_JIRAS=('{{subdomain1}}' '{{subdomain_2}}')
 export M2J_MOCO_API_KEY={{Your Moco API Key}}
 export M2J_MOCO_SUBDOMAIN={{moco-subdomain}}
 export M2J_USER={{Your email address}}
-export M2J_VERBOSE=1 # 1 = verbosing
 
 source ~/moco2jira/transfer
 ```
@@ -26,6 +25,20 @@ e.g. `#TICKET-1234 code review`
 After tracking you can transfer the booking to Jira by running
 ```
 m2j
+```
+
+### Transfer tracking for another day
+
+```
+m2j -d 2024-01-01
+```
+
+### Delete tracking in Jira
+It will only delete Tickets stated in Moco. It will not delete all
+
+```
+m2j --delete
+m2j -d 2024-01-01 --delete
 ```
 
 ### Requirements
