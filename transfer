@@ -106,7 +106,6 @@ m2j_fetch_jira_issues() {
 
 m2j_update_moco() {
   GUARD=$1
-  ADD=$2
 
   m2j_verbose yellow "UPDATE MOCO" $GUARD
 
@@ -135,13 +134,14 @@ m2j_update_moco() {
           MOCO_DESCRIPTION=`echo $MOCO_DESCRIPTION | sed 's/ (synced)//' | sed 's/ (synched)//g'`
 
           if [[ $MOCO_DESCRIPTION == *" || "* ]]; then
-            NEW_DESCRIPTION=`echo "$MOCO_DESCRIPTION$ADD" | sed 's/\"/\\\"/g'`
+            NEW_DESCRIPTION=`echo "$MOCO_DESCRIPTION" | sed 's/\"/\\\"/g'`
+            REMOTE_URL=''
           else
-            NEW_DESCRIPTION=`echo "$JIRA_TEXT || $MOCO_DESCRIPTION$ADD" | sed 's/\"/\\\"/g'`
+            NEW_DESCRIPTION=`echo "$JIRA_TEXT || $MOCO_DESCRIPTION" | sed 's/\"/\\\"/g'`
+            m2j_verbose red "NEW_DESCRIPTION" $NEW_DESCRIPTION
+            REMOTE_URL="https://${M2J_JIRA_TICKETS[$JIRA_KEY,'JIRA']}.atlassian.net/browse/${JIRA_KEY}"
+            m2j_verbose red "REMOTE_URL" $REMOTE_URL
           fi
-          m2j_verbose red "NEW_DESCRIPTION" $NEW_DESCRIPTION
-          REMOTE_URL="https://${M2J_JIRA_TICKETS[$JIRA_KEY,'JIRA']}.atlassian.net/browse/${JIRA_KEY}"
-          m2j_verbose red "REMOTE_URL" $REMOTE_URL
           ACTION=`curl -s -X PUT "${M2J_MOCO_API}/activities/${MOCO_ID}" -H "$M2J_MOCO_AUTH" -H 'Content-Type: application/json' -d "{\"description\":\"$NEW_DESCRIPTION\",\"remote_url\":\"$REMOTE_URL\"}"`
           UPATED=true
         fi
@@ -218,7 +218,7 @@ m2j_update_moco_project() {
         NEW_PROJECT_ID=`echo $JIRA_JSON | jq -r '.properties."de.scolution.jira.moco-plugin.project.conf.project".id'`
       fi
 
-      if [[ $NEW_PROJECT_ID == "null" ]]; then
+      if [[ $NEW_PROJECT_ID == "null" || -z $NEW_PROJECT_ID ]]; then
         m2j_verbose red "skipping ${JIRA_KEY}; no project found in JIRA"
       else
         if [[ $PROJECT_ID == "${NEW_PROJECT_ID}" ]]; then
@@ -233,11 +233,8 @@ m2j_update_moco_project() {
   done
 }
 
-m2j() {
-  m2j_setup $1
-  m2j_moco_json
-  m2j_fetch_jira_issues
-  m2j_update_moco " || "
+m2j_delete() {
+  m2j_verbose yellow "DELETE"
   m2j_moco_json
 
   for i in $(echo $MOCO_JSON | jq "reduce .[] as \$row ({}; .[\"\(\$row.tag) ||| \(\$row.description)\"] += \$row.seconds) | . as \$hash | keys | map({key:split(\" ||| \")[0], text: split(\" ||| \")[1], duration: \$hash[.]})" | jq -r '.[] | @base64')
@@ -248,34 +245,98 @@ m2j() {
     JIRA_KEY=`echo $i | base64 --decode | jq -r '.key'`
     m2j_verbose green "JIRA_KEY" $JIRA_KEY
 
-    BOOKING_TEXT=`echo $i | base64 --decode | jq -r '.text' | sed 's/ (synced)//' | sed 's/ (synched)//g'`
-    if [[ $BOOKING_TEXT == *" || "* ]]; then
-      if [[ M2J_ARRAY_OFFSET == 0 ]]; then
-        BOOKING_TEXT=`echo "${BOOKING_TEXT}" | awk '{split($0, a, / \|\| /); print a[2]}'` # split BOOKING_TEXT with delimiter " || "
-      else
-        arrIN=(${(s/ || /)BOOKING_TEXT}) # split BOOKING_TEXT with delimiter " || "
-        INDEX=$((1 + $M2J_ARRAY_OFFSET))
-        BOOKING_TEXT=`echo ${arrIN[$INDEX]}`
-      fi
-    fi
-    m2j_verbose green "BOOKING_TEXT" "${BOOKING_TEXT}"
+    JIRA_TEXT=${M2J_JIRA_TICKETS[$JIRA_KEY,'SUMMARY']}
 
-    BOOKING_DURATION=$(( `echo $i | base64 --decode | jq -r '.duration'` / 60 * 60 ))
-    m2j_verbose green "BOOKING_DURATION" $BOOKING_DURATION
-
-    if [[ $BOOKING_DURATION == 0 ]]; then
-      m2j_echo yellow "skipping; in progress"
+    if [[ -z $JIRA_TEXT ]]; then
+      m2j_echo red "skipping; ${JIRA_KEY} not found"
     else
-      if [[ -z $JIRA_KEY ]]; then
-        m2j_echo red "No Tag for ${BOOKING_TEXT} - skipping"
-      else
-        m2j_book_jira
-      fi
-    fi
+      JIRA=${M2J_JIRA_TICKETS[$JIRA_KEY,'JIRA']}
+      m2j_curl_jira_issue "/worklog"
 
-    m2j_verbose yellow "------------------------------------------" "\n\n"
+      JIRA_HASH=`echo $JIRA_JSON | jq ".worklogs[] | { id, started, timeSpentSeconds, author: .updateAuthor.emailAddress, comment: .comment }"`
+      m2j_verbose green "JIRA_HASH" "${JIRA_HASH}"
+
+      JIRA_BOOKING=`echo $JIRA_HASH | jq "select(.author==\"${M2J_USER}\") | select(.started|startswith(\"${TRANSFER_DATE}\")) | {id}"`
+      m2j_verbose green "JIRA_BOOKING" "${JIRA_BOOKING}"
+
+      WORKLOG_IDS=`echo $JIRA_BOOKING | jq -r '.id'`
+      for id in $(echo $WORKLOG_IDS)
+      do
+        JIRA_TMP=`curl -s --request DELETE --user "${M2J_USER}:${M2J_JIRA_TOKEN}" --header 'Accept: application/json' --url "https://${JIRA}.atlassian.net/rest/api/3/issue/${JIRA_KEY}/worklog/${id}"`
+        m2j_echo green "deleted; ${JIRA_KEY}; worklogId ${id}"
+      done
+    fi
+  done
+}
+
+m2j() {
+  M2J_DELETE=0
+  M2J_VERBOSE=0
+
+  while [[ $# -gt 0 ]]
+  do
+    key="$1"
+    case $key in
+      -v|--verbose)
+        M2J_VERBOSE=1
+        shift
+        ;;
+      -d|--date)
+        M2J_DATE="$2"
+        shift
+        shift
+        ;;
+      --delete)
+        M2J_DELETE=1
+        shift
+        ;;
+      *)
+        shift
+        ;;
+    esac
   done
 
-  m2j_update_moco " (synced)" " (synced)"
-  m2j_update_moco_project
+  m2j_setup $M2J_DATE
+  echo
+
+  if [[ $M2J_DELETE == 0 ]]; then
+    m2j_moco_json
+    m2j_fetch_jira_issues
+    m2j_update_moco " || "
+    m2j_moco_json
+
+    for i in $(echo $MOCO_JSON | jq "reduce .[] as \$row ({}; .[\"\(\$row.tag) ||| \(\$row.description)\"] += \$row.seconds) | . as \$hash | keys | map({key:split(\" ||| \")[0], text: split(\" ||| \")[1], duration: \$hash[.]})" | jq -r '.[] | @base64')
+    do
+      DECODED=`echo $i | base64 --decode`
+      m2j_verbose green "ROW" "${DECODED}"
+
+      JIRA_KEY=`echo $i | base64 --decode | jq -r '.key'`
+      m2j_verbose green "JIRA_KEY" $JIRA_KEY
+
+      BOOKING_TEXT=`echo $i | base64 --decode | jq -r '.text' | sed 's/ (synced)//' | sed 's/ (synched)//g'`
+      if [[ $BOOKING_TEXT == *" || "* ]]; then
+        BOOKING_TEXT=`echo "${BOOKING_TEXT}" | awk '{split($0, a, / \|\| /); print a[2]}'` # split BOOKING_TEXT with delimiter " || "
+      fi
+      m2j_verbose green "BOOKING_TEXT" "${BOOKING_TEXT}"
+
+      BOOKING_DURATION=$(( `echo $i | base64 --decode | jq -r '.duration'` / 60 * 60 ))
+      m2j_verbose green "BOOKING_DURATION" $BOOKING_DURATION
+
+      if [[ $BOOKING_DURATION == 0 ]]; then
+        m2j_echo yellow "skipping; in progress"
+      else
+        if [[ -z $JIRA_KEY ]]; then
+          m2j_echo red "No Tag for ${BOOKING_TEXT} - skipping"
+        else
+          m2j_book_jira
+        fi
+      fi
+
+      m2j_verbose yellow "------------------------------------------" "\n\n"
+    done
+
+    m2j_update_moco_project
+  else
+    m2j_delete
+  fi
 }
