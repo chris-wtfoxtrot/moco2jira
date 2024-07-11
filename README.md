@@ -31,6 +31,7 @@ m2j
 
 ```
 m2j -d 2024-01-01
+m2j --date 2024-01-01
 ```
 
 ### Delete tracking in Jira
@@ -39,6 +40,12 @@ It will only delete Tickets stated in Moco. It will not delete all
 ```
 m2j --delete
 m2j -d 2024-01-01 --delete
+```
+
+### Verbosing
+```
+m2j --verbose
+m2j -v
 ```
 
 ### Requirements
